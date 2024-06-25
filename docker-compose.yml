@@ -1,0 +1,54 @@
+version: '3'
+services:
+  sites_test:
+    ## to connect for wp-cli run `docker-compose exec --user=www-data sites_test /bin/bash`
+    ## for all other connections run `docker-compose exec sites_test /bin/bash`
+    ## for php unit `bin/install-wp-tests.sh wordpress_test root root wpdb latest`
+    ## image: localhost/wordpress:latest
+    image: localhost/wordpress:latest
+    external_links:
+      - 'db:mysql'
+    restart: always
+    volumes:
+      - ./html:/var/www/html
+      - ./docker/fpm:/var/log/
+    expose:
+      - '80'
+      - '443'
+    networks:
+      - localhost_local_traefik
+    environment: 
+      - DB_NAME=simplesaml
+      - DB_HOST=wpdb
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_PORT=4306
+      - SAML_AUTOLOAD_PATH=/vendor/simplesamlphp/simplesamlphp/lib/_autoload.php
+      - LOCAL_SAML_STORE_DSN=mysql:host=wpdb.localhost_local_traefik;dbname=simplesaml
+      - DOCROOT=/var/www/html/web
+      - WP_TESTS_PHPUNIT_POLYFILLS_PATH=/var/www/html/vendor/yoast/phpunit-polyfills
+
+  sites_test_nginx:
+    ## for connections run `docker-compose exec sites_test_nginx /bin/bash`
+    image: nginx
+    depends_on:
+      -  sites_test
+    restart: always
+    labels:
+      - "traefik.http.routers.sites_test_nginx.rule=HostRegexp(`sites.test`, `newtest.test`, `localtest.info`, `{subdomain:(.+)?}.sites.test`, `localtest.sites.unc.edu` )"
+      #- "traefik.http.routers.sites_nginx.rule=Host(`sites.unc.localhost`)"
+      - "traefik.http.routers.sites_test_nginx.entrypoints=web-secure"
+      - "traefik.http.routers.sites_test_nginx.tls=true"
+      - "traefik.enable=true"
+    volumes:
+      - ./docker/conf/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./html:/var/www/html
+      - ./docker/nginx:/var/log/nginx
+    networks:
+      - localhost_local_traefik
+    environment: 
+     - DOCUMENT_ROOT=/var/www/html
+
+networks:
+  localhost_local_traefik:
+    external: true
